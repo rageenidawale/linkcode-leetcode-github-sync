@@ -1,22 +1,58 @@
-<html>
-    <head>
-        <meta charset="UTF-8" />
-        <title>LeetCode GitHub Sync</title>
-        <link rel="stylesheet" href="popup.css" />
-    </head>
-    <body>
-        <h3>Setup</h3>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>LeetCode GitHub Sync</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
 
-        <input
-        type="text"
-        id="repoInput"
-        placeholder="GitHub repo (username/repo)"
-        />
+  <!-- SETUP VIEW -->
+  <div id="setupView" class="container">
+    <h1>LeetCode GitHub Sync</h1>
+    <p class="subtitle">One-time setup</p>
 
-        <button id="saveBtn">Save</button>
+    <label>
+      GitHub Username
+      <input type="text" id="githubOwner" />
+    </label>
 
-        <p id="status"></p>
+    <label>
+      Repository Name
+      <input type="text" id="githubRepo" />
+    </label>
 
-        <script src="popup.js"></script>
-    </body>
+    <label>
+      GitHub Token
+      <input type="password" id="githubToken" />
+    </label>
+
+    <button id="saveBtn">Save & Continue</button>
+    <p id="setupStatus" class="status"></p>
+  </div>
+
+  <!-- DASHBOARD VIEW -->
+  <div id="dashboardView" class="container hidden">
+    <h1>LeetCode → GitHub</h1>
+
+    <p class="repo" id="repoText"></p>
+
+    <p class="mode" id="syncModeText"></p>
+
+    <label class="toggle">
+      <input type="checkbox" id="autoSyncToggle" />
+      <span>Auto-sync</span>
+    </label>
+
+    <!-- <div class="status-box" id="dashboardStatus">
+      Waiting for next Accepted submission…
+    </div> -->
+
+    <button id="changeConfigBtn" class="link-button">
+      Change configuration
+    </button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
 </html>
