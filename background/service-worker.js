@@ -23,8 +23,20 @@ chrome.runtime.onMessage.addListener((message, sender) => {
       },
       (results) => {
         const code = results?.[0]?.result || "";
-        console.log("📦 Code extracted in background:");
-        console.log(code.slice(0, 200) + "...");
+        const submission = {
+  problemSlug: sender.tab.url.split("/")[4], // e.g. "two-sum"
+  language: "python", // we’ll refine later
+  code,
+  timestamp: Date.now()
+};
+
+chrome.storage.local.set(
+  { lastSubmission: submission },
+  () => {
+    console.log("💾 Submission saved to storage:", submission);
+  }
+);
+
       }
     );
   }
