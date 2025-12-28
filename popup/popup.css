@@ -196,6 +196,16 @@ button {
   margin-left: 12px;
 }
 
+.form-error {
+  width: 100%;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 13px;
+  padding: 10px;
+  border-radius: 8px;
+  /* margin-bottom: var(--space-md); */
+}
+
 form {
   width: 100%;
 }

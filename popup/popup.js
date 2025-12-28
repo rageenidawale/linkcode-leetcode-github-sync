@@ -28,6 +28,8 @@ const lastSyncInfo = document.getElementById("last-sync-info");
 const lastSyncFile = document.getElementById("last-sync-file");
 const lastSyncTime = document.getElementById("last-sync-time");
 
+const formError = document.getElementById("form-error");
+
 // Close buttons
 document.querySelectorAll(".close-btn").forEach(btn => {
   btn.addEventListener("click", () => window.close());
@@ -66,9 +68,19 @@ function updateAutoSyncUI(autoSync) {
   }
 }
 
+function showFormError(message) {
+  formError.textContent = message;
+  formError.classList.remove("hidden");
+}
+
+function clearFormError() {
+  formError.textContent = "";
+  formError.classList.add("hidden");
+}
 // =================================================
 // INITIAL LOAD
 // =================================================
+const FORM_DRAFT_KEY = "connectFormDraft";
 
 chrome.storage.local.get(
   [
@@ -78,6 +90,7 @@ chrome.storage.local.get(
     "autoSync",
     "lastSyncedFile",
     "lastSyncedTime",
+    FORM_DRAFT_KEY, 
   ],
   (data) => {
     const { githubOwner, githubRepo, githubToken } = data;
@@ -85,6 +98,7 @@ chrome.storage.local.get(
     // Default autoSync = true
     const autoSync = data.autoSync !== false;
 
+    // ✅ CASE 1: Already connected → dashboard
     if (githubOwner && githubRepo && githubToken) {
       updateRepoName(githubOwner, githubRepo);
       updateAutoSyncUI(autoSync);
@@ -95,8 +109,18 @@ chrome.storage.local.get(
         lastSyncTime.textContent = data.lastSyncedTime;
         lastSyncInfo.classList.remove("hidden");
       }
-    } else {
-      showScreen("welcome");
+      return;
+    }
+
+    // CASE 2: Not connected → welcome
+    showScreen("welcome");
+
+    // CASE 3: Restore form draft if it exists
+    const draft = data[FORM_DRAFT_KEY];
+    if (draft) {
+      usernameInput.value = draft.githubOwner || "";
+      repoInput.value = draft.githubRepo || "";
+      tokenInput.value = draft.githubToken || "";
     }
   }
 );
@@ -120,6 +144,20 @@ changeConfigLink?.addEventListener("click", () => {
 // =================================================
 // FORM SUBMIT (CONNECT REPO)
 // =================================================
+
+// Save draft on input
+[usernameInput, repoInput, tokenInput].forEach(input => {
+  input.addEventListener("input", () => {
+    clearFormError();
+    chrome.storage.local.set({
+      [FORM_DRAFT_KEY]: {
+        githubOwner: usernameInput.value,
+        githubRepo: repoInput.value,
+        githubToken: tokenInput.value
+      }
+    });
+  });
+});
 
 connectForm.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -145,10 +183,9 @@ connectForm.addEventListener("submit", (e) => {
       submitBtn.textContent = "Connect Repository";
 
       if (!response || !response.success) {
-        alert(response?.error || "Failed to connect to GitHub");
+        showFormError(response?.error || "Failed to connect to GitHub");
         return;
-      }
-
+        }
       // ✅ Verified → persist config
       chrome.storage.local.set(
         {
@@ -157,7 +194,9 @@ connectForm.addEventListener("submit", (e) => {
           githubToken,
           autoSync: true
         },
+        
         () => {
+            chrome.storage.local.remove(FORM_DRAFT_KEY);
           updateRepoName(githubOwner, githubRepo);
           updateAutoSyncUI(true);
           showScreen("success");
