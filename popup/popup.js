@@ -24,10 +24,6 @@ const autoSyncToggle = document.getElementById("auto-sync-toggle");
 const syncModeText = document.getElementById("sync-mode-text");
 const manualSyncBtn = document.getElementById("manual-sync-btn");
 
-// const lastSyncInfo = document.getElementById("last-sync-info");
-// const lastSyncFile = document.getElementById("last-sync-file");
-// const lastSyncTime = document.getElementById("last-sync-time");
-
 const statusBox = document.getElementById("status-box");
 const statusText = document.getElementById("status-text");
 
@@ -113,19 +109,19 @@ function renderStatus({ lastAccepted, lastSync, syncError, autoSync }) {
   // Always reset first
   resetStatus();
 
-  // 1️⃣ Nothing ever happened
+  // Nothing ever happened
   if (!lastAccepted && !lastSync && !syncError) {
     hideStatus();
     return;
   }
 
-  // 2️⃣ Error always wins
+  // Error always wins
   if (syncError) {
     showError(syncError.message || "Sync failed due to an unknown error.");
     return;
   }
 
-  // 3️⃣ Auto-sync OFF + accepted but NOT synced
+  // Auto-sync OFF + accepted but NOT synced
   if (
     autoSync === false &&
     lastAccepted &&
@@ -138,7 +134,7 @@ function renderStatus({ lastAccepted, lastSync, syncError, autoSync }) {
     return;
   }
 
-  // 4️⃣ Normal success (last synced)
+  // Normal success (last synced)
   if (lastSync) {
     showSuccess(
       `Synced <b>${lastSync.path}</b><br>
@@ -180,7 +176,7 @@ chrome.storage.local.get(
     // Default autoSync = true
     const autoSync = data.autoSync !== false;
 
-    // ✅ CASE 1: Already connected → dashboard
+    // Already connected → dashboard
     if (githubOwner && githubRepo && githubToken) {
       updateRepoName(githubOwner, githubRepo);
       updateAutoSyncUI(autoSync);
@@ -194,10 +190,10 @@ chrome.storage.local.get(
       return;
     }
 
-    // CASE 2: Not connected → welcome
+    // Not connected - welcome
     showScreen("welcome");
 
-    // CASE 3: Restore form draft if it exists
+    // Restore form draft if it exists
     const draft = data[FORM_DRAFT_KEY];
     if (draft) {
       usernameInput.value = draft.githubOwner || "";
@@ -241,14 +237,23 @@ changeConfigLink?.addEventListener("click", () => {
   });
 });
 
+let isSubmitting = false;
+
 connectForm.addEventListener("submit", (e) => {
   e.preventDefault();
+
+  if (isSubmitting) return;
 
   const githubOwner = usernameInput.value.trim();
   const githubRepo = repoInput.value.trim();
   const githubToken = tokenInput.value.trim();
 
-  if (!githubOwner || !githubRepo || !githubToken) return;
+  if (!githubOwner || !githubRepo || !githubToken) {
+    showFormError("All fields are required.");
+    return;
+  } 
+
+  isSubmitting = true;
 
   // Disable button + show loading
   const submitBtn = connectForm.querySelector("button[type='submit']");
@@ -261,14 +266,20 @@ connectForm.addEventListener("submit", (e) => {
       payload: { owner: githubOwner, repo: githubRepo, token: githubToken }
     },
     (response) => {
+      isSubmitting = false;
       submitBtn.disabled = false;
       submitBtn.textContent = "Connect Repository";
+
+      if (chrome.runtime.lastError) {
+        showFormError("Extension error. Please try again.");
+        return;
+      }
 
       if (!response || !response.success) {
         showFormError(response?.error || "Failed to connect to GitHub");
         return;
         }
-      // ✅ Verified → persist config
+      // Verified - persist config
       chrome.storage.local.set(
         {
           githubOwner,

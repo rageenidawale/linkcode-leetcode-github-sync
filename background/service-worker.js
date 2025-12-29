@@ -1,12 +1,9 @@
-console.log("Background service worker loaded");
-
 const GITHUB_API_BASE = "https://api.github.com";
 
 /* -------------------- Helpers -------------------- */
 
 // Normalize Monaco language IDs
 function normalizeLanguage(rawLang) {
-    console.log(rawLang);
   if (!rawLang) return { family: "unknown" };
 
   const l = rawLang.toLowerCase();
@@ -175,15 +172,11 @@ function setSyncError(message) {
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (message.type !== "EXTRACT_CODE") return;
 
-  console.log("📨 Background received EXTRACT_CODE message", message);
-  console.log("[Background] Sender: ", sender);
-
   chrome.scripting.executeScript(
     {
       target: { tabId: sender.tab.id },
       world: "MAIN",
       func: () => {
-        console.log("Running in page context");
         let code = "";
         let language = "unknown";
 
@@ -193,30 +186,24 @@ chrome.runtime.onMessage.addListener((message, sender) => {
             const model = models[0];
             code = model.getValue();
             language = model.getLanguageId();
-          } else {
-            console.log("Monaco not found");
-          }
+          } 
         }
-
-        console.log("Injected extracted: ", { language, code });
 
         return { code, language };
       },
     },
     async (results) => {
-      console.log("Injection results: ", results);
       const result = results?.[0]?.result || {};
       let { code, language } = result;
 
       const langInfo = normalizeLanguage(language);
-      console.log("langInfo: ", langInfo);
 
       if (langInfo.family === "unknown") return;
 
       // SAFETY GUARD
       if (!code || language === "unknown") {
         console.warn(
-          "⚠️ Could not reliably detect language. Skipping GitHub push."
+          "Could not reliably detect language. Skipping GitHub push."
         );
         return;
       }
@@ -228,10 +215,8 @@ chrome.runtime.onMessage.addListener((message, sender) => {
         timestamp: Date.now(),
       };
 
-      console.log("Submission: ", submission);
       // Save submission
       chrome.storage.local.set({ lastSubmission: submission }, () => {
-        console.log("💾 Submission saved to storage:", submission);
 
         // Read GitHub config and push
         chrome.storage.local.get(
@@ -258,7 +243,6 @@ chrome.runtime.onMessage.addListener((message, sender) => {
               const finalCode = `${header}\n${code}`;
 
               if (cfg.autoSync === false) {
-                console.log("Auto Sync OFF - waiting for manual sync");
                 return;
               }
 
@@ -270,10 +254,9 @@ chrome.runtime.onMessage.addListener((message, sender) => {
                 content: finalCode,
               });
 
-              console.log("✅ GitHub push successful:", result.content.path);
               setLastSync(path);
             } catch (err) {
-              console.error("❌ GitHub push error:", err.message);
+              console.error("GitHub push error:", err.message);
               setSyncError(
                 err.message.includes("401")
                 ? "Couldn’t sync to GitHub. Please check your access token."
@@ -289,8 +272,6 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (message.type !== "MANUAL_SYNC") return;
-
-  console.log("🔘 Manual sync triggered");
 
   chrome.storage.local.get(
     ["lastSubmission", "githubOwner", "githubRepo", "githubToken"],
@@ -335,14 +316,12 @@ chrome.runtime.onMessage.addListener((message, sender) => {
           content: finalCode,
         });
 
-        console.log("✅ Manual GitHub push successful:", result.content.path);
         setLastSync(path);
 
         chrome.storage.local.set({
           lastSyncedFile: path,
           lastSyncedTime: new Date().toLocaleString(),
         });
-        console.log("Writing last sync to storage");
 
       } catch (err) {
         console.error("❌ Manual sync failed:", err.message);
@@ -396,7 +375,7 @@ async function verifyGitHubRepo({ owner, repo, token }) {
 async function pushToGitHub({ owner, repo, token, path, content }) {
   const url = `${GITHUB_API_BASE}/repos/${owner}/${repo}/contents/${path}`;
 
-  // 1️⃣ Check if file exists (get SHA)
+  // Check if file exists (get SHA)
   let sha = null;
   const getRes = await fetch(url, {
     headers: {
@@ -413,7 +392,7 @@ async function pushToGitHub({ owner, repo, token, path, content }) {
     throw new Error(`Precheck failed: ${getRes.status} ${t}`);
   }
 
-  // 2️⃣ Create or update file
+  // Create or update file
   const body = {
     message: `LeetCode: update ${path}`,
     content: base64Encode(content),

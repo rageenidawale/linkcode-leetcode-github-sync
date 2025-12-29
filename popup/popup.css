@@ -70,7 +70,6 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  /* margin-bottom: var(--space-md); */
 }
 
 .top-bar.centered {
@@ -180,7 +179,6 @@ button {
 .page-title {
   font-size: 18px;
   font-weight: 600;
-  /* margin-bottom: var(--space-sm); */
   text-align: left;
   width: 100%;
   margin-left: 12px;
@@ -189,7 +187,6 @@ button {
 .page-description {
   font-size: 14px;
   color: var(--text-muted);
-  /* margin-bottom: var(--space-sm); */
   text-align: left;
   width: 100%;
   margin-top: 0;
@@ -203,7 +200,6 @@ button {
   font-size: 13px;
   padding: 10px;
   border-radius: 8px;
-  /* margin-bottom: var(--space-md); */
 }
 
 form {
@@ -213,7 +209,6 @@ form {
 .form-section {
   border: none;
   padding: 0;
-  /* margin-bottom: var(--space-lg); */
 }
 
 .form-section legend {
@@ -274,7 +269,6 @@ input:focus {
 .repo-name {
   font-size: 14px;
   font-weight: 600;
-  /* margin-bottom: var(--space-lg); */
   margin-top: 4px;
 }
 
@@ -286,7 +280,6 @@ input:focus {
   font-size: 13px;
   color: var(--text-muted);
   margin-bottom: 0;
-  /* margin-bottom: 4px; */
 }
 
 .toggle-row {
@@ -333,7 +326,6 @@ input:focus {
 
 .last-sync {
   font-size: 13px;
-  /* margin-top: var(--space-md); */
   margin-bottom: 0;
 }
 

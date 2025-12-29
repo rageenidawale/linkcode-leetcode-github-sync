@@ -120,7 +120,6 @@ LinkCode does **not** need access to:
 - Sync **only accepted submissions**
 - Auto-sync and manual sync modes
 - Language-based folder structure
-- Inline validation and error handling
 - Draft-safe setup (no lost form data on tab switch)
 - Clean, distraction-free UI
 
