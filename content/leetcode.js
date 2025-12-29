@@ -103,4 +103,5 @@ observer.observe(document.body, {
   subtree: true,
 });
 
+
 console.log("MutationObserver attached");
