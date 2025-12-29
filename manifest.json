@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "LeetCode GitHub Sync",
+  "name": "LinkCode - LeetCode GitHub Sync",
   "description": "Securely sync accepted LeetCode submissions to a single GitHub repository.",
   "version": "1.0.0",
 
@@ -18,6 +18,12 @@
       "js": ["content/leetcode.js"]
     }
   ],
+
+  "icons": {
+    "16": "popup/assets/logo-16.png",
+    "48": "popup/assets/logo-48.png",
+    "128": "popup/assets/logo-128.png"
+  },
 
   "permissions": [
     "storage",

@@ -1,4 +1,4 @@
-console.log("Background service worker loaded");
+// console.log("Background service worker loaded");
 
 const GITHUB_API_BASE = "https://api.github.com";
 
@@ -84,7 +84,7 @@ function buildHeader({ problemSlug, language, difficulty, timestamp }, pageUrl) 
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (message.type !== "EXTRACT_CODE") return;
 
-  console.log("📨 Background received EXTRACT_CODE message");
+  // console.log("📨 Background received EXTRACT_CODE message");
 
   chrome.scripting.executeScript(
     {
@@ -150,7 +150,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 
       // 1️⃣ Save submission
       chrome.storage.local.set({ lastSubmission: submission }, () => {
-        console.log("💾 Submission saved to storage:", submission);
+        // console.log("💾 Submission saved to storage:", submission);
 
         // 2️⃣ Read GitHub config and push
         chrome.storage.local.get(
@@ -185,7 +185,7 @@ chrome.runtime.onMessage.addListener((message, sender) => {
               });
 
 
-              console.log("✅ GitHub push successful:", result.content.path);
+              // console.log("✅ GitHub push successful:", result.content.path);
             } catch (err) {
               console.error("❌ GitHub push error:", err.message);
             }

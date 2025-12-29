@@ -1,4 +1,4 @@
-console.log("LeetCode content script loaded");
+// console.log("LeetCode content script loaded");
 
 let submissionInProgress = false;
 
@@ -10,7 +10,7 @@ document.addEventListener("click", (event) => {
 
   if (button && button.innerText.trim() === "Submit") {
     submissionInProgress = true;
-    console.log("Submit button clicked");
+    // console.log("Submit button clicked");
   }
 });
 
@@ -23,7 +23,7 @@ const observer = new MutationObserver(() => {
 
   // Detect Accepted result
   if (document.body.innerText.includes("Accepted")) {
-    console.log("✅ Accepted submission detected");
+    // console.log("✅ Accepted submission detected");
 
     submissionInProgress = false;
 
