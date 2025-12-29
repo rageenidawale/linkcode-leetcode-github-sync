@@ -1,40 +1,102 @@
-// console.log("LeetCode content script loaded");
+console.log("Linkcode content script loaded");
 
 let submissionInProgress = false;
+let lastStatus = null;
+let observer = null;
+let lastSeenResult = null;
 
-/**
- * STEP 1: Detect when the user clicks the Submit button
- */
+const SUBMIT_SELECTORS = [
+  '[data-e2e-locator="console-submit-button"]',
+  '[data-e2e-locator="submit-button"]',
+  'button[aria-label="Submit"]'
+];
+
+function safeSendMessage(payload) {
+  if (
+    typeof chrome === "undefined" ||
+    !chrome.runtime ||
+    !chrome.runtime.sendMessage
+  ) {
+    console.warn("Extension context unavailable. Message skipped.");
+    return false;
+  }
+
+  chrome.runtime.sendMessage(payload);
+  return true;
+}
+
+function isSQLLanguage(lang) {
+  return ["mysql", "postgresql", "oracle", "ms sql server", "sqlserver"].includes(lang?.toLowerCase());
+}
+
+// Detect Submit click
 document.addEventListener("click", (event) => {
-  const button = event.target.closest("button");
+  console.log("Click!");
 
-  if (button && button.innerText.trim() === "Submit") {
-    submissionInProgress = true;
-    // console.log("Submit button clicked");
+  const submitBtn = event.target.closest('[data-e2e-locator="console-submit-button"]');
+  if (submitBtn) {
+    console.log("✅ Submit button clicked");
+    submissionInProgress = true; 
+  } else {
+    console.log("Submit button not detected");
   }
 });
 
-/**
- * STEP 2: Observe DOM changes after submit
- * We only react if a submission is in progress
- */
-const observer = new MutationObserver(() => {
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+    submissionInProgress = true;
+  } else {
+    console.log("Key press not detected");
+  }
+});
+
+// Observe result changes
+observer = new MutationObserver(() => {
   if (!submissionInProgress) return;
 
-  // Detect Accepted result
-  if (document.body.innerText.includes("Accepted")) {
-    // console.log("✅ Accepted submission detected");
+  //  // ---------- SQL FLOW ----------
+  // if (submissionInProgress) {
+  //   const editor = window.monaco?.editor?.getModels?.()[0];
+  //   const lang = editor?.getLanguageId();
 
-    submissionInProgress = false;
+  //   if (isSQLLanguage(lang)) {
+  //     submissionInProgress = false;
+  //     safeSendMessage({ type: "EXTRACT_CODE" });
+  //     return; // IMPORTANT: stop here for SQL
+  //   }
+  // }
 
-    // Tell background script to extract code safely
-    chrome.runtime.sendMessage({
-      type: "EXTRACT_CODE"
-    });
+  const resultEl = document.querySelector(
+    '[data-e2e-locator="submission-result"]'
+  );
+  if (!resultEl) return;
+
+  const status = resultEl.innerText.trim();
+
+  console.log("Submission status: ", status);
+
+  if (resultEl === lastSeenResult) return;
+  lastSeenResult = resultEl;
+
+  if (status === "Accepted") {
+    lastStatus = "Accepted";
+    // submissionInProgress = false;
+
+    console.log("Accepted detected");
+
+    const sent = safeSendMessage({ type: "EXTRACT_CODE" });
+
+    // IMPORTANT: stop observer immediately
+    if (sent && observer) {
+      observer.disconnect();
+      observer = null;
+    }
   }
 });
 
 observer.observe(document.body, {
   childList: true,
-  subtree: true
+  subtree: true,
 });
+
+console.log("MutationObserver attached");

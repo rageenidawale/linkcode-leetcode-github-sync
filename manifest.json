@@ -33,5 +33,12 @@
   "host_permissions": [
     "https://leetcode.com/*",
     "https://api.github.com/*"
-  ]
+  ],
+
+  "externally_connectable": {
+    "matches": [
+      "*://127.0.0.1:*/*",
+      "https://leetcode.com/problems/*"
+    ]
+  }
 }

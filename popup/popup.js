@@ -30,6 +30,9 @@ const lastSyncTime = document.getElementById("last-sync-time");
 
 const formError = document.getElementById("form-error");
 
+const statusBox = document.getElementById("status-box");
+const statusText = document.getElementById("status-text");
+
 // Close buttons
 document.querySelectorAll(".close-btn").forEach(btn => {
   btn.addEventListener("click", () => window.close());
@@ -77,6 +80,46 @@ function clearFormError() {
   formError.textContent = "";
   formError.classList.add("hidden");
 }
+
+function renderStatus({ lastSync, lastAccepted, syncError, autoSync }) {
+  statusBox.classList.add("hidden");
+
+  // Nothing ever synced, no error
+  if (!lastSync && !syncError) return;
+
+  statusBox.classList.remove("hidden");
+
+  // Error state
+  if (syncError) {
+    statusText.textContent = syncError.message;
+    statusBox.className = "status-box error";
+    return;
+  }
+
+  // Auto-sync OFF
+  if (autoSync === false) {
+    statusText.textContent =
+      `Auto-sync is off. Last synced ${timeAgo(lastSync.time)} — ${lastSync.path}`;
+    statusBox.className = "status-box warning";
+    return;
+  }
+
+  // Normal success
+  statusText.textContent =
+    `Last synced ${timeAgo(lastSync.time)} — ${lastSync.path}`;
+  statusBox.className = "status-box success";
+}
+
+function timeAgo(ts) {
+  const diff = Math.floor((Date.now() - ts) / 1000);
+
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`;
+
+  return `${Math.floor(diff / 86400)} days ago`;
+}
+
 // =================================================
 // INITIAL LOAD
 // =================================================
@@ -93,6 +136,7 @@ chrome.storage.local.get(
     FORM_DRAFT_KEY, 
   ],
   (data) => {
+    renderStatus(data);
     const { githubOwner, githubRepo, githubToken } = data;
 
     // Default autoSync = true
@@ -223,15 +267,31 @@ autoSyncToggle?.addEventListener("click", () => {
 // MANUAL SYNC BUTTON (placeholder)
 // =================================================
 
-manualSyncBtn?.addEventListener("click", () => {
-  // This will later send a message to background.js
-  // For now, visual feedback only
+manualSyncBtn?.addEventListener("click", (e) => {
+  e.preventDefault();
 
   manualSyncBtn.textContent = "Syncing...";
   manualSyncBtn.disabled = true;
+
+  chrome.runtime.sendMessage({ type: "MANUAL_SYNC" });
 
   setTimeout(() => {
     manualSyncBtn.textContent = "Sync Last Submission";
     manualSyncBtn.disabled = false;
   }, 1000);
+});
+
+// =================================================
+// STATUS UPDATE
+// =================================================
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+
+  if (changes.lastSync || changes.syncError) {
+    chrome.storage.local.get(
+      ["autoSync", "lastSync", "lastAccepted", "syncError"],
+      renderStatus
+    );
+  }
 });

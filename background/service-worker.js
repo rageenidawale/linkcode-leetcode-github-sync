@@ -1,34 +1,92 @@
-// console.log("Background service worker loaded");
+console.log("Background service worker loaded");
 
 const GITHUB_API_BASE = "https://api.github.com";
 
 /* -------------------- Helpers -------------------- */
 
 // Normalize Monaco language IDs
-function normalizeLanguage(lang) {
-  const map = {
+function normalizeLanguage(rawLang) {
+    console.log(rawLang);
+  if (!rawLang) return { family: "unknown" };
+
+  const l = rawLang.toLowerCase();
+
+  // Monaco reports ALL SQL as "sql"
+  if (l === "sql" || l === "mysql" || l === "postgresql") {
+    return { family: "sql", dialect: "generic" };
+  }
+
+  // ---------- Pandas ----------
+  if (l === "pandas") return { family: "pandas" };
+
+  // ---------- Programming languages ----------
+  const codeMap = {
     python: "python",
     python3: "python",
     javascript: "javascript",
     typescript: "javascript",
     java: "java",
     cpp: "cpp",
-    "c++": "cpp"
+    "c++": "cpp",
+    c: "c",
+    csharp: "csharp",
+    "c#": "csharp",
+    go: "go",
+    kotlin: "kotlin",
+    swift: "swift",
+    rust: "rust",
+    ruby: "ruby",
+    php: "php",
+    dart: "dart",
+    scala: "scala",
+    racket: "racket",
+    erlang: "erlang",
+    elixir: "elixir",
   };
-  return map[lang?.toLowerCase()] || "unknown";
+
+  if (codeMap[l]) {
+    return { family: "code", language: codeMap[l] };
+  }
+
+  return { family: "unknown" };
 }
 
 // Map language → folder + extension
-function getPath(language, slug) {
+function getPath(langInfo, slug) {
   const snake = slug.replace(/-/g, "_");
+
+  // ---------- SQL ----------
+  if (langInfo.family === "sql") {
+    return `database/${langInfo.dialect}/${snake}.sql`;
+  }
+
+  // ---------- Pandas ----------
+  if (langInfo.family === "pandas") {
+    return `database/pandas/${snake}.py`;
+  }
+
+  // ---------- Programming ----------
   const map = {
     python: { dir: "python", ext: "py" },
     javascript: { dir: "javascript", ext: "js" },
     java: { dir: "java", ext: "java" },
-    cpp: { dir: "cpp", ext: "cpp" }
+    cpp: { dir: "cpp", ext: "cpp" },
+    c: { dir: "c", ext: "c" },
+    csharp: { dir: "csharp", ext: "cs" },
+    go: { dir: "go", ext: "go" },
+    kotlin: { dir: "kotlin", ext: "kt" },
+    swift: { dir: "swift", ext: "swift" },
+    rust: { dir: "rust", ext: "rs" },
+    ruby: { dir: "ruby", ext: "rb" },
+    php: { dir: "php", ext: "php" },
+    dart: { dir: "dart", ext: "dart" },
+    scala: { dir: "scala", ext: "scala" },
+    racket: { dir: "racket", ext: "rkt" },
+    erlang: { dir: "erlang", ext: "erl" },
+    elixir: { dir: "elixir", ext: "ex" },
   };
 
-  const cfg = map[language];
+  const cfg = map[langInfo.language];
   if (!cfg) throw new Error("Unsupported language");
 
   return `${cfg.dir}/${snake}.${cfg.ext}`;
@@ -41,13 +99,15 @@ function base64Encode(str) {
 function humanizeSlug(slug) {
   return slug
     .split("-")
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 }
 
-function getCommentPrefix(language) {
-  if (language === "python") return "#";
-  return "//"; // javascript, java, cpp
+function getCommentPrefix(langInfo) {
+  if (langInfo.family === "sql") return "--";
+  if (langInfo.family === "pandas") return "#";
+  if (langInfo.family === "code" && langInfo.language === "python") return "#";
+  return "//";
 }
 
 function getLanguageDisplayName(language) {
@@ -55,28 +115,59 @@ function getLanguageDisplayName(language) {
     python: "Python",
     javascript: "JavaScript",
     java: "Java",
-    cpp: "C++"
+    cpp: "C++",
   };
   return map[language] || language;
 }
 
-function buildHeader({ problemSlug, language, difficulty, timestamp }, pageUrl) {
-  const prefix = getCommentPrefix(language);
-  const date = new Date(timestamp).toISOString().split("T")[0];
-  const problemName = humanizeSlug(problemSlug);
-  const langName = getLanguageDisplayName(language);
+function buildHeader({ title, slug, rawLanguage, langInfo }) {
+  const prefix = getCommentPrefix(langInfo);
+  const url = `https://leetcode.com/problems/${slug}/`;
+  const date = new Date().toLocaleString();
 
-  return [
-    `${prefix} ----------------------------------`,
-    `${prefix} Problem: ${problemName}`,
-    `${prefix} Link: ${pageUrl}`,
-    `${prefix} Language: ${langName}`,
-    `${prefix} Difficulty: ${difficulty}`,
-    `${prefix} Date: ${date}`,
-    `${prefix} Synced via: LeetCode GitHub Sync`,
-    `${prefix} ----------------------------------`,
-    ""
-  ].join("\n");
+  let languageLabel = rawLanguage;
+  if (langInfo.family === "sql") {
+    languageLabel = `SQL (${langInfo.dialect})`;
+  }
+  if (langInfo.family === "pandas") {
+    languageLabel = "Python (Pandas)";
+  }
+
+  return `
+${prefix} ======================================
+${prefix} LeetCode Problem: ${title}
+${prefix} Language: ${languageLabel}
+${prefix} Link: ${url}
+${prefix} Synced by: LinkCode
+${prefix} Date: ${date}
+${prefix} ======================================
+
+`.trimStart();
+}
+
+function setLastAccepted(path) {
+  chrome.storage.local.set({
+    lastAccepted: {
+      path,
+      time: Date.now()
+    }
+  });
+}
+
+function setLastSync(path) {
+  chrome.storage.local.set({
+    lastSync: {
+      path,
+      time: Date.now()
+    },
+    syncError: null
+  });
+}
+
+function setSyncError(message) {
+  chrome.storage.local.set({
+    syncError: { message }
+  });
 }
 
 /* -------------------- Message Listener -------------------- */
@@ -84,13 +175,15 @@ function buildHeader({ problemSlug, language, difficulty, timestamp }, pageUrl) 
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (message.type !== "EXTRACT_CODE") return;
 
-  // console.log("📨 Background received EXTRACT_CODE message");
+  console.log("📨 Background received EXTRACT_CODE message", message);
+  console.log("[Background] Sender: ", sender);
 
   chrome.scripting.executeScript(
     {
       target: { tabId: sender.tab.id },
       world: "MAIN",
       func: () => {
+        console.log("Running in page context");
         let code = "";
         let language = "unknown";
 
@@ -100,61 +193,49 @@ chrome.runtime.onMessage.addListener((message, sender) => {
             const model = models[0];
             code = model.getValue();
             language = model.getLanguageId();
+          } else {
+            console.log("Monaco not found");
           }
         }
 
-        let difficulty = "unknown";
+        console.log("Injected extracted: ", { language, code });
 
-        // Try to detect difficulty text from page
-        const difficultyEl = document.querySelector(
-          '[class*="difficulty"], [class*="Difficulty"]'
-        );
-
-        if (difficultyEl) {
-          const text = difficultyEl.innerText.trim().toLowerCase();
-          if (text.includes("easy")) difficulty = "Easy";
-          else if (text.includes("medium")) difficulty = "Medium";
-          else if (text.includes("hard")) difficulty = "Hard";
-        }
-
-        return { code, language, difficulty };
-
-      }
+        return { code, language };
+      },
     },
-    (results) => {
+    async (results) => {
+      console.log("Injection results: ", results);
       const result = results?.[0]?.result || {};
-      let { code, language, difficulty } = result;
+      let { code, language } = result;
 
-      language = normalizeLanguage(language);
+      const langInfo = normalizeLanguage(language);
+      console.log("langInfo: ", langInfo);
+
+      if (langInfo.family === "unknown") return;
 
       // SAFETY GUARD
       if (!code || language === "unknown") {
-        console.warn("⚠️ Could not reliably detect language. Skipping GitHub push.");
+        console.warn(
+          "⚠️ Could not reliably detect language. Skipping GitHub push."
+        );
         return;
       }
-
-      if (!difficulty || difficulty === "unknown") {
-        console.warn("⚠️ Could not detect difficulty. Skipping GitHub push.");
-        return;
-      }
-
 
       const submission = {
         problemSlug: sender.tab.url.split("/")[4],
         language,
-        difficulty,
         code,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
 
-
-      // 1️⃣ Save submission
+      console.log("Submission: ", submission);
+      // Save submission
       chrome.storage.local.set({ lastSubmission: submission }, () => {
-        // console.log("💾 Submission saved to storage:", submission);
+        console.log("💾 Submission saved to storage:", submission);
 
-        // 2️⃣ Read GitHub config and push
+        // Read GitHub config and push
         chrome.storage.local.get(
-          ["githubOwner", "githubRepo", "githubToken"],
+          ["githubOwner", "githubRepo", "githubToken", "autoSync"],
           async (cfg) => {
             try {
               const { githubOwner, githubRepo, githubToken } = cfg;
@@ -164,30 +245,40 @@ chrome.runtime.onMessage.addListener((message, sender) => {
                 return;
               }
 
-              const path = getPath(
-                submission.language,
-                submission.problemSlug
-              );
+              const path = getPath(langInfo, submission.problemSlug);
+              setLastAccepted(path);
 
-              const header = buildHeader(
-                submission,
-                sender.tab.url
-              );
-
-              const finalCode = `${header}\n${submission.code}`;
-
-              const result = await pushToGitHub({
-                owner: githubOwner,
-                repo: githubRepo,
-                token: githubToken,
-                path,
-                content: finalCode
+              const header = buildHeader({
+                title: submission.problemSlug.replace(/-/g, " "),
+                slug: submission.problemSlug,
+                rawLanguage: language,
+                langInfo,
               });
 
+              const finalCode = `${header}\n${code}`;
 
-              // console.log("✅ GitHub push successful:", result.content.path);
+              if (cfg.autoSync === false) {
+                console.log("Auto Sync OFF - waiting for manual sync");
+                return;
+              }
+
+              const result = await pushToGitHub({
+                owner: cfg.githubOwner,
+                repo: cfg.githubRepo,
+                token: cfg.githubToken,
+                path,
+                content: finalCode,
+              });
+
+              console.log("✅ GitHub push successful:", result.content.path);
+              setLastSync(path);
             } catch (err) {
               console.error("❌ GitHub push error:", err.message);
+              setSyncError(
+                err.message.includes("401")
+                ? "Couldn’t sync to GitHub. Please check your access token."
+                : "Sync failed due to a network or GitHub issue."
+            );
             }
           }
         );
@@ -196,34 +287,97 @@ chrome.runtime.onMessage.addListener((message, sender) => {
   );
 });
 
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (message.type !== "MANUAL_SYNC") return;
+
+  console.log("🔘 Manual sync triggered");
+
+  chrome.storage.local.get(
+    ["lastSubmission", "githubOwner", "githubRepo", "githubToken"],
+    async (cfg) => {
+      try {
+        const { lastSubmission, githubOwner, githubRepo, githubToken } = cfg;
+
+        if (!lastSubmission) {
+          console.warn("⚠️ No submission available for manual sync");
+          return;
+        }
+
+        if (!githubOwner || !githubRepo || !githubToken) {
+          console.warn("⚠️ GitHub not configured");
+          return;
+        }
+
+        const { problemSlug, language, code } = lastSubmission;
+        const langInfo = normalizeLanguage(language);
+
+        if (langInfo.family === "unknown") {
+          console.warn("⚠️ Unsupported language for manual sync");
+          return;
+        }
+
+        const path = getPath(langInfo, problemSlug);
+
+        const header = buildHeader({
+          title: problemSlug.replace(/-/g, " "),
+          slug: problemSlug,
+          rawLanguage: language,
+          langInfo,
+        });
+
+        const finalCode = `${header}\n${code}`;
+
+        const result = await pushToGitHub({
+          owner: githubOwner,
+          repo: githubRepo,
+          token: githubToken,
+          path,
+          content: finalCode,
+        });
+
+        console.log("✅ Manual GitHub push successful:", result.content.path);
+        setLastSync(path);
+
+        // OPTIONAL but recommended (for UI status)
+        chrome.storage.local.set({
+          lastSyncedFile: path,
+          lastSyncedTime: new Date().toLocaleString(),
+        });
+
+      } catch (err) {
+        console.error("❌ Manual sync failed:", err.message);
+      }
+    }
+  );
+});
+
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "VERIFY_GITHUB") {
     verifyGitHubRepo(message.payload)
       .then(sendResponse)
-      .catch(err =>
-        sendResponse({ success: false, error: err.message })
-      );
+      .catch((err) => sendResponse({ success: false, error: err.message }));
     return true; // async response
   }
 });
 
 async function verifyGitHubRepo({ owner, repo, token }) {
-  const res = await fetch(
-    `https://api.github.com/repos/${owner}/${repo}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/vnd.github+json"
-      }
-    }
-  );
+  const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+    },
+  });
 
   if (res.status === 401) {
     return { success: false, error: "Invalid access token" };
   }
 
   if (res.status === 403) {
-    return { success: false, error: "Token does not have access to this repository" };
+    return {
+      success: false,
+      error: "Token does not have access to this repository",
+    };
   }
 
   if (res.status === 404) {
@@ -237,7 +391,6 @@ async function verifyGitHubRepo({ owner, repo, token }) {
   return { success: true };
 }
 
-
 /* -------------------- GitHub API -------------------- */
 
 async function pushToGitHub({ owner, repo, token, path, content }) {
@@ -248,8 +401,8 @@ async function pushToGitHub({ owner, repo, token, path, content }) {
   const getRes = await fetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json"
-    }
+      Accept: "application/vnd.github+json",
+    },
   });
 
   if (getRes.status === 200) {
@@ -263,7 +416,7 @@ async function pushToGitHub({ owner, repo, token, path, content }) {
   // 2️⃣ Create or update file
   const body = {
     message: `LeetCode: update ${path}`,
-    content: base64Encode(content)
+    content: base64Encode(content),
   };
 
   if (sha) body.sha = sha;
@@ -273,9 +426,9 @@ async function pushToGitHub({ owner, repo, token, path, content }) {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
   });
 
   if (!putRes.ok) {
