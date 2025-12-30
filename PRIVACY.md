@@ -107,12 +107,3 @@ Any changes will be reflected in the extension documentation.
 ## Contact
 
 If you have questions or concerns about privacy or security, please contact the developer via the Chrome Web Store listing.
-
----
-
-### Summary (plain English)
-
-- Your code stays yours  
-- Your GitHub access is limited to one repository  
-- Nothing leaves your browser except your solution going to GitHub  
-- No tracking, no analytics, no hidden behavior
